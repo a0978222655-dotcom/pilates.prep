@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<!-- 防止放大:user-scalable=no + touch-action:manipulation -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>皮拉提斯備課</title>
+<style>
+:root{--bg:#f6f4f0;--card:#fff;--tx:#2b2b2b;--sub:#8a8a8a;--pri:#7a9e87;--pri2:#5f8570;--line:#e8e4dd;--warn:#d9776b}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1d1c;--card:#272928;--tx:#eee;--sub:#999;--line:#3a3c3a}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;overscroll-behavior:none}
+input,select{-webkit-user-select:text;user-select:text}
+#app{max-width:520px;margin:0 auto;padding:14px 14px 150px;padding-top:max(14px,env(safe-area-inset-top))}
+h1{font-size:20px;margin:4px 0 12px}
+.card{background:var(--card);border-radius:14px;padding:12px;margin-bottom:12px;border:1px solid var(--line)}
+button{font:inherit;border:0;border-radius:10px;padding:9px 14px;background:var(--pri);color:#fff}
+button.g{background:transparent;color:var(--pri2);border:1px solid var(--pri)}
+button.d{background:transparent;color:var(--warn);padding:6px 8px}
+button.big{width:100%;padding:14px;font-size:17px;margin-top:6px}
+input,select{font:inherit;font-size:16px;width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--tx)}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>.s{flex:0 0 70px}.row>.x{flex:0 0 auto}
+.sub{color:var(--sub);font-size:13px}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+.tabs button{flex:1;background:none;color:var(--sub);border-radius:0;padding:14px 0}
+.tabs button.on{color:var(--pri2);font-weight:700}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cal .h{font-size:12px;color:var(--sub)}
+.day{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;background:var(--card);border:1px solid var(--line)}
+.day.t{border-color:var(--pri);font-weight:700}
+.day i{width:6px;height:6px;border-radius:50%;margin-top:2px;background:transparent}
+.day i.p{background:#e0b252}.day i.k{background:var(--pri)}
+.gh{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.gh input{font-weight:700}
+.item{border-top:1px dashed var(--line);padding:8px 0}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:6px}.bar b{display:block;height:100%;background:var(--pri)}
+.sheet{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end}
+.sheet>div{background:var(--card);width:100%;max-width:520px;margin:0 auto;border-radius:18px 18px 0 0;padding:16px;max-height:75%;overflow:auto}
+.sheet button.opt{display:block;width:100%;text-align:left;background:var(--bg);color:var(--tx);margin-bottom:6px}
+.timer{position:fixed;left:10px;right:10px;bottom:calc(60px + env(safe-area-inset-bottom));max-width:500px;margin:0 auto;background:var(--pri2);color:#fff;border-radius:14px;padding:12px;z-index:6}
+.timer b{font-size:28px}.timer button{background:#fff3;margin-left:6px;padding:7px 10px}
+.chk{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+.chk .c{width:26px;height:26px;border-radius:50%;border:2px solid var(--pri);flex:0 0 26px;display:flex;align-items:center;justify-content:center;color:#fff}
+.chk.ok .c{background:var(--pri)}.chk.ok .n{text-decoration:line-through;color:var(--sub)}
+.chk .n{flex:1}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="layer"></div>
+<script>
+// ---------- 資料 ----------
+const KEY='pilates_prep_v1';
+const DEF={lib:[
+ {id:'a1',name:'呼吸練習',min:3},{id:'a2',name:'貓牛式',min:3},{id:'a3',name:'胸椎扭轉',min:3},
+ {id:'a4',name:'高跪前推',min:3},{id:'a5',name:'平移',min:3},{id:'a6',name:'跪姿死蟲',min:3}],plans:{}};
+let S;try{S=JSON.parse(localStorage.getItem(KEY))||DEF}catch(e){S=DEF}
+S.locs=S.locs||['工作室A','工作室B'];
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let tab='cal',cur=new Date(),sel=null,prac=null,picker=null,tm=null,iv=null;
+const uid=()=>Math.random().toString(36).slice(2,9);
+const ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const items=p=>p.groups.flatMap(g=>g.items);
+const r1=n=>Math.round(n*10)/10;
+const itemT=i=>(+i.sets||1)*(+i.min||0);
+const total=p=>r1(items(p).reduce((a,i)=>a+itemT(i),0));
+const pct=p=>{const a=items(p);return a.length?Math.round(a.filter(i=>p.progress?.[i.id]).length/a.length*100):0};
+const newPlan=()=>({loc:'',locNote:'',done:false,progress:{},groups:['初期','中期','收尾'].map(n=>({id:uid(),name:n,items:[]}))});
+const find=(p,gid)=>p.groups.find(g=>g.id===gid);
+
+// ---------- 畫面 ----------
+function render(){
+  const A=document.getElementById('app'),L=document.getElementById('layer');L.innerHTML='';
+  if(sel){A.innerHTML=planView();if(picker)L.innerHTML=pickerView();return}
+  if(prac){A.innerHTML=pracView();if(tm)L.innerHTML=timerView();return}
+  A.innerHTML=(tab==='cal'?calView():tab==='lib'?libView():pracList());
+  L.innerHTML=`<div class="tabs">${[['cal','📅 日曆'],['lib','📚 課程庫'],['prac','🧘 練習']].map(([k,n])=>`<button class="${tab===k?'on':''}" data-a="tab" data-v="${k}">${n}</button>`).join('')}</div>`;
+}
+function calView(){
+  const y=cur.getFullYear(),m=cur.getMonth(),first=new Date(y,m,1).getDay(),n=new Date(y,m+1,0).getDate(),today=ds(new Date());
+  let h=`<div class="row" style="margin-bottom:10px"><button class="g x" data-a="mon" data-v="-1">‹</button><h1 style="text-align:center;margin:0">${y} 年 ${m+1} 月</h1><button class="g x" data-a="mon" data-v="1">›</button></div><div class="cal">`;
+  '日一二三四五六'.split('').forEach(d=>h+=`<div class="h">${d}</div>`);
+  for(let i=0;i<first;i++)h+='<div></div>';
+  for(let d=1;d<=n;d++){const k=ds(new Date(y,m,d)),p=S.plans[k];
+    h+=`<div class="day ${k===today?'t':''}" data-a="open" data-v="${k}">${d}<i class="${p?(p.done?'k':'p'):''}"></i></div>`}
+  return h+`</div><p class="sub">🟡 備課中　🟢 已完成備課　點日期開始備課</p>`;
+}
+function planView(){
+  const p=S.plans[sel],t=total(p);
+  let h=`<div class="row" style="margin-bottom:8px"><button class="g x" data-a="back">‹ 返回</button><h1 style="margin:0;text-align:right">${sel}</h1></div>
+  <div class="card"><div class="sub">地點</div><select data-f="loc"><option value="">— 選擇地點 —</option>${[...new Set([...S.locs,...(p.loc?[p.loc]:[])])].map(l=>`<option ${l===p.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>
+  <input style="margin-top:6px" data-f="locnote" value="${esc(p.locNote||'')}" placeholder="地點備註(例如:3樓、帶彈力帶)">
+  <div class="sub" style="margin-top:8px">預估總時間:<b style="color:var(--tx)">${t}</b> 分鐘${p.done?'　✅ 已完成備課':''}</div></div>`;
+  p.groups.forEach(g=>{
+    const gt=r1(g.items.reduce((a,i)=>a+itemT(i),0));
+    h+=`<div class="card"><div class="gh"><input data-f="gname" data-g="${g.id}" value="${esc(g.name)}"><span class="sub" style="white-space:nowrap">${gt} 分</span><button class="d" data-a="delg" data-g="${g.id}">刪類組</button></div>`;
+    g.items.forEach(i=>h+=`<div class="item"><div class="row"><input data-f="iname" data-g="${g.id}" data-i="${i.id}" value="${esc(i.name)}"><button class="d x" data-a="deli" data-g="${g.id}" data-i="${i.id}">✕</button></div>
+      <div class="row" style="margin-top:6px"><select data-f="isets" data-g="${g.id}" data-i="${i.id}">${[1,2,3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${n==(i.sets||1)?'selected':''}>${n} 組</option>`).join('')}</select>
+      <input type="number" inputmode="decimal" step="0.5" min="0" data-f="imin" data-g="${g.id}" data-i="${i.id}" value="${i.min}"><span class="x sub">分/組</span><b class="x" style="min-width:56px;text-align:right">= ${r1(itemT(i))}分</b></div>
+      <input style="margin-top:6px" data-f="inote" data-g="${g.id}" data-i="${i.id}" value="${esc(i.note||'')}" placeholder="備註 例如:每組 8 下"></div>`);
+    h+=`<button class="g" style="margin-top:8px" data-a="pick" data-g="${g.id}">＋ 新增練習</button></div>`});
+  h+=`<button class="g big" data-a="addg">＋ 新增類組</button>
+  <button class="big" data-a="finish">${p.done?'更新並完成備課':'✔ 完成備課'}</button>
+  ${S.plans[sel]?`<button class="d big" data-a="delplan">刪除這天的備課</button>`:''}`;
+  return h;
+}
+function pickerView(){
+  return `<div class="sheet" data-a="closepick"><div data-a="stop"><b>選擇練習</b><p class="sub">點選即加入</p>
+  ${S.lib.map(l=>`<button class="opt" data-a="add" data-id="${l.id}">${esc(l.name)}　<span class="sub">${l.min} 分</span></button>`).join('')||'<p class="sub">課程庫是空的,請先到「課程庫」新增</p>'}
+  <button class="g big" data-a="closepick">關閉</button></div></div>`;
+}
+function libView(){
+  return `<h1>課程庫</h1><div class="card"><div class="sub">新增可選的課程(分鐘為「每組」預設時間)</div>
+  <div class="row" style="margin-top:6px"><input id="ln" placeholder="練習名稱"><input id="lm" class="s" type="number" inputmode="numeric" value="3"><button class="x" data-a="addlib">新增</button></div></div>
+  <div class="card">${S.lib.map(l=>`<div class="row item"><span>${esc(l.name)}</span><span class="sub x">預設 ${l.min} 分/組</span><button class="d x" data-a="dellib" data-id="${l.id}">✕</button></div>`).join('')}</div>
+  <h1>地點管理</h1><div class="card"><div class="row"><input id="locn" placeholder="新增地點名稱"><button class="x" data-a="addloc">新增</button></div></div>
+  <div class="card">${S.locs.map((l,k)=>`<div class="row item"><span>${esc(l)}</span><button class="d x" data-a="delloc" data-v="${k}">✕</button></div>`).join('')||'<span class="sub">尚無地點</span>'}</div>`;
+}
+function pracList(){
+  const ks=Object.keys(S.plans).filter(k=>S.plans[k].done).sort().reverse();
+  return `<h1>練習模式</h1><p class="sub">選擇要練習哪一天的備課(需先完成備課)</p>`+(ks.map(k=>{const p=S.plans[k],c=pct(p);
+    return `<div class="card" data-a="startprac" data-v="${k}"><div class="row"><b>${k}</b><span class="x sub">${total(p)} 分 ・ ${p.loc?esc(p.loc):'未填地點'}</span></div>
+    <div class="bar"><b style="width:${c}%"></b></div><div class="sub" style="margin-top:4px">完成度 ${c}%</div></div>`}).join('')||'<div class="card sub">還沒有已完成的備課</div>');
+}
+function pracView(){
+  const p=S.plans[prac];
+  let h=`<div class="row" style="margin-bottom:8px"><button class="g x" data-a="exitprac">退出</button><h1 style="margin:0;text-align:right">${prac}</h1></div>
+  <div class="card"><div class="row"><b>完成度 ${pct(p)}%</b><span class="x sub">共 ${total(p)} 分</span></div><div class="bar"><b style="width:${pct(p)}%"></b></div></div>`;
+  p.groups.forEach(g=>{h+=`<div class="card"><b>${esc(g.name)}</b>`+g.items.map(i=>{const ok=p.progress[i.id];
+    return `<div class="chk ${ok?'ok':''}"><div class="c" data-a="tog" data-i="${i.id}">${ok?'✓':''}</div><div class="n"><div>${esc(i.name)}</div><div class="sub">${i.sets||1}組 × ${i.min}分 ${esc(i.note||'')}</div></div><button class="g x" data-a="timer" data-i="${i.id}">⏱ ${r1(itemT(i))}分</button></div>`}).join('')+'</div>'});
+  return h;
+}
+function timerView(){
+  const i=items(S.plans[prac]).find(x=>x.id===tm.i);if(!i){tm=null;return''}
+  return `<div class="timer"><div class="row"><div>${esc(i.name)}<br><b id="tt">${fmt(tm.left)}</b></div><div class="x"><button data-a="tpause">${tm.run?'暫停':'繼續'}</button><button data-a="tdone">完成</button><button data-a="tstop">取消</button></div></div></div>
+  <div class="tabs" style="display:none"></div>`;
+}
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+function tick(){
+  if(!tm||!tm.run)return;tm.left--;
+  if(tm.left<=0){const p=S.plans[prac];p.progress[tm.i]=true;save();stopT();navigator.vibrate&&navigator.vibrate([300,100,300]);render();return}
+  const e=document.getElementById('tt');if(e)e.textContent=fmt(tm.left);
+}
+function stopT(){clearInterval(iv);iv=null;tm=null}
+
+// ---------- 事件 ----------
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,p=S.plans[sel];
+  if(a==='stop')return;
+  if(a==='tab'){tab=t.dataset.v}
+  else if(a==='mon'){cur=new Date(cur.getFullYear(),cur.getMonth()+(+t.dataset.v),1)}
+  else if(a==='open'){sel=t.dataset.v;if(!S.plans[sel]){S.plans[sel]=newPlan();save()}}
+  else if(a==='back'){const pl=S.plans[sel];if(pl&&!pl.done&&!items(pl).length&&!pl.loc)delete S.plans[sel];sel=null;save()}
+  else if(a==='addg'){p.groups.push({id:uid(),name:'新類組',items:[]})}
+  else if(a==='delg'){if(!confirm('刪除這個類組?'))return;p.groups=p.groups.filter(g=>g.id!==t.dataset.g)}
+  else if(a==='deli'){const g=find(p,t.dataset.g);g.items=g.items.filter(i=>i.id!==t.dataset.i)}
+  else if(a==='pick'){picker=t.dataset.g}
+  else if(a==='closepick'){picker=null}
+  else if(a==='add'){const l=S.lib.find(x=>x.id===t.dataset.id);find(p,picker).items.push({id:uid(),name:l.name,min:l.min,sets:1,note:''});picker=null}
+  else if(a==='finish'){p.done=true;sel=null;alert('✅ 備課完成!可到「練習」分頁開始練習')}
+  else if(a==='delplan'){if(!confirm('刪除這天整份備課?'))return;delete S.plans[sel];sel=null}
+  else if(a==='addlib'){const n=document.getElementById('ln').value.trim(),m=+document.getElementById('lm').value||3;if(!n)return;S.lib.push({id:uid(),name:n,min:m})}
+  else if(a==='addloc'){const n=document.getElementById('locn').value.trim();if(!n||S.locs.includes(n))return;S.locs.push(n)}
+  else if(a==='delloc'){S.locs.splice(+t.dataset.v,1)}
+  else if(a==='dellib'){S.lib=S.lib.filter(x=>x.id!==t.dataset.id)}
+  else if(a==='startprac'){prac=t.dataset.v;S.plans[prac].progress=S.plans[prac].progress||{}}
+  else if(a==='exitprac'){stopT();prac=null}
+  else if(a==='tog'){const pr=S.plans[prac].progress;pr[t.dataset.i]=!pr[t.dataset.i]}
+  else if(a==='timer'){stopT();const i=items(S.plans[prac]).find(x=>x.id===t.dataset.i);tm={i:i.id,left:Math.max(1,Math.round(itemT(i)*60)),run:true};iv=setInterval(tick,1000)}
+  else if(a==='tpause'){tm.run=!tm.run}
+  else if(a==='tdone'){S.plans[prac].progress[tm.i]=true;stopT()}
+  else if(a==='tstop'){stopT()}
+  save();render();
+});
+document.addEventListener('change',e=>{
+  const t=e.target,f=t.dataset.f;if(!f||!sel)return;const p=S.plans[sel];
+  if(f==='loc')p.loc=t.value;
+  else if(f==='locnote')p.locNote=t.value;
+  else if(f==='gname')find(p,t.dataset.g).name=t.value;
+  else{const i=find(p,t.dataset.g).items.find(x=>x.id===t.dataset.i);
+    if(f==='iname')i.name=t.value;if(f==='imin')i.min=Math.max(0,+t.value||0);if(f==='isets')i.sets=+t.value;if(f==='inote')i.note=t.value}
+  save();render();
+});
+// 防止雙指/手勢縮放(iOS)
+['gesturestart','gesturechange','gestureend'].forEach(n=>document.addEventListener(n,e=>e.preventDefault()));
+render();
+</script>
+</body>
+</html>
